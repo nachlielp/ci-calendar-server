@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
 import dayjs from "dayjs";
 import {
+  AddUserAlertData,
   CIEvent,
   CINotificationWithUserAndEvent,
   CIRequestWithUser,
@@ -30,7 +31,7 @@ class Supabase {
     try {
       const { data, error } = await this.supabase
         .from("config")
-        .select("flag")
+        .select("*")
         .eq("title", env_notification_flag)
         .single();
 
@@ -40,12 +41,10 @@ class Supabase {
       }
 
       const flag = data.flag;
-
       return flag;
     } catch (error) {
+      // TODO: handle error
       console.error("Error checking notification flag:", error);
-      throw error;
-    } finally {
       return false;
     }
   }
@@ -68,8 +67,7 @@ class Supabase {
       return data as CIEvent[];
     } catch (error) {
       console.error("Error getting new active events:", error);
-    } finally {
-      return [] as CIEvent[];
+      throw error;
     }
   }
 
@@ -77,21 +75,21 @@ class Supabase {
     try {
       const { data, error } = await this.supabase
         .from("users")
-        .select("user_id")
+        .select(
+          "user_id, push_notification_tokens,subscriptions,alerts(viewed)"
+        )
         .eq("receive_notifications", true);
 
       if (error) {
         throw error;
       }
-
       return data;
     } catch (error) {
       console.error(
         "Error getting list of users with notifications enabled:",
         error
       );
-    } finally {
-      return [];
+      throw error;
     }
   }
 
@@ -125,8 +123,7 @@ class Supabase {
       return data as CINotificationWithUserAndEvent[];
     } catch (error) {
       console.error("Error getting all unfifilled due notifications:", error);
-    } finally {
-      return [] as CINotificationWithUserAndEvent[];
+      throw error;
     }
   }
 
@@ -149,17 +146,11 @@ class Supabase {
         error
       );
       throw error;
-    } finally {
-      return [];
     }
   }
 
-  async addUserAlert(
-    userId: string,
-    type: NotificationType,
-    eventId?: string,
-    requestId?: string
-  ) {
+  async addUserAlert(data: AddUserAlertData) {
+    const { userId, type, eventId, requestId } = data;
     try {
       const alertData = {
         user_id: userId,
@@ -169,7 +160,14 @@ class Supabase {
           : { ci_event_id: eventId }),
       };
 
-      await this.supabase.from("alerts").insert(alertData);
+      const { data, error } = await this.supabase
+        .from("alerts")
+        .insert(alertData);
+      if (error) {
+        console.error("Error adding user alert:", error);
+        throw error;
+      }
+      console.log("addUserAlert.data", data);
     } catch (error) {
       console.error("Error adding user alert:", error);
       throw error;
@@ -177,6 +175,7 @@ class Supabase {
   }
 
   async setCIEventAsNotified(eventId: string) {
+    console.log("setCIEventAsNotified.eventId", eventId);
     try {
       await this.supabase
         .from("ci_events")

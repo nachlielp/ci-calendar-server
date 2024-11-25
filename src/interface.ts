@@ -142,3 +142,10 @@ export interface CIServerNotification {
   unreadCount: number;
   type: NotificationType;
 }
+
+export interface AddUserAlertData {
+  userId: string;
+  type: NotificationType;
+  eventId?: string;
+  requestId?: string;
+}

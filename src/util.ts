@@ -1,6 +1,6 @@
 import dayjs from "dayjs";
-import utc from "dayjs/plugin/utc.js";
-import timezone from "dayjs/plugin/timezone.js";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
 import { CIUser, EventSubscribersData } from "./interface";
 
 dayjs.extend(utc);
@@ -23,7 +23,7 @@ export function getEventListOfSubscribersData(
 
   const userTokensAndCounts = subscribedUsers.map((user) => ({
     tokens: user.push_notification_tokens.map((token) => token.token),
-    unreadCount: user.alerts.length,
+    unreadCount: user.alerts.filter((alert) => !alert.viewed).length,
   }));
 
   return userTokensAndCounts;

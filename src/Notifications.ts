@@ -1,12 +1,7 @@
-import {
-  CIEvent,
-  CIServerNotification,
-  FirebaseMessage,
-  NotificationType,
-} from "./interface.js";
+import { CIEvent, CIServerNotification, NotificationType } from "./interface";
 import { supabase } from "./Supabase";
 import { sendMessage } from "./firebase-messages";
-import { getEventListOfSubscribersData } from "./util.js";
+import { getEventListOfSubscribersData } from "./util";
 
 const SUPSCRIPTION_BODY = "אירוע חדש";
 
@@ -41,16 +36,22 @@ class Notifications {
       );
 
       for (const subscriber of subscribersData) {
-        await this.sendNotification({
-          title: event.title,
-          body: SUPSCRIPTION_BODY,
-          token: subscriber.tokens[0],
-          eventId: event.id,
-          userId: event.user_id,
-          unreadCount: subscriber.unreadCount,
-          type: NotificationType.subscription,
-        });
+        try {
+          await this.sendNotification({
+            title: event.title,
+            body: SUPSCRIPTION_BODY,
+            token: subscriber.tokens[0],
+            eventId: event.id,
+            userId: event.user_id,
+            unreadCount: subscriber.unreadCount,
+            type: NotificationType.subscription,
+          });
+        } catch (error) {
+          // TODO: handle error
+          console.error(error);
+        }
       }
+      this.supabase.setCIEventAsNotified(event.id);
     }
   }
 
@@ -84,7 +85,7 @@ class Notifications {
     unreadCount,
     type,
   }: CIServerNotification): Promise<any> {
-    await this.supabase.addUserAlert(userId, eventId, type);
+    await this.supabase.addUserAlert({ userId, type, eventId, requestId: "" });
 
     const url = "/event/" + eventId;
 
@@ -95,7 +96,7 @@ class Notifications {
         url: url,
         eventId: eventId,
         click_action: url,
-        badge: unreadCount.toString(),
+        badge: (unreadCount + 1).toString(),
       },
       webpush: {
         headers: {
@@ -111,6 +112,7 @@ class Notifications {
       token: token,
     };
 
+    console.log("sendNotification.message", message);
     return await sendMessage(message);
   }
 }
