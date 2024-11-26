@@ -17,27 +17,26 @@ class Notifications {
   }
 
   async notifySubscribers() {
-    const isNotificationEnabled = await this.supabase.isNotificationEnabled();
-    if (!isNotificationEnabled) {
-      return;
-    }
-
-    const users = await this.supabase.getListOfUsersWithNotificationsEnabled();
-    const events: CIEvent[] = await this.supabase.getNewActiveEvents();
+    const [users, events] = await Promise.all([
+      this.supabase.getListOfUsersWithNotificationsEnabled(),
+      this.supabase.getNewActiveEvents(),
+    ]);
     for (const event of events) {
       const subscribersData = getEventListOfSubscribersData(
         users,
         event.segments
-          .map((segment) => segment.teachers.map((teacher) => teacher.value))
+          .map((segment: any) =>
+            segment.teachers.map((teacher: any) => teacher.value)
+          )
           .flat()
           .filter(Boolean)
-          .filter((teacher) => teacher !== ""),
-        event.organisations.map((org) => org.value)
+          .filter((teacher: any) => teacher !== ""),
+        event.organisations.map((org: any) => org.value)
       );
 
-      for (const subscriber of subscribersData) {
-        try {
-          await this.sendNotification({
+      const results = await Promise.allSettled(
+        subscribersData.map((subscriber) =>
+          this.sendNotification({
             title: event.title,
             body: SUPSCRIPTION_BODY,
             token: subscriber.tokens[0],
@@ -45,13 +44,21 @@ class Notifications {
             userId: event.user_id,
             unreadCount: subscriber.unreadCount,
             type: NotificationType.subscription,
-          });
-        } catch (error) {
-          // TODO: handle error
-          console.error(error);
-        }
+          })
+        )
+      );
+
+      const failures = results.filter((r) => r.status === "rejected");
+
+      if (failures.length) {
+        //TODO report error
+        console.error(
+          `Failed to send ${failures.length} notifications:`,
+          failures
+        );
       }
-      this.supabase.setCIEventAsNotified(event.id);
+      // TODO: uncomment
+      this.supabase.setCIEventsAsNotified(events.map((e: CIEvent) => e.id));
     }
   }
 
