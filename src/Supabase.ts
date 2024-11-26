@@ -257,6 +257,18 @@ class Supabase {
     }
   }
 
+  async setNotificationsAsSent(notificationIds: string[]) {
+    try {
+      await this.supabase
+        .from("notifications")
+        .update({ sent: true })
+        .in("id", notificationIds);
+    } catch (error) {
+      console.error("Error setting notifications as sent:", error);
+      throw error;
+    }
+  }
+
   async setCIEventAsNotified(eventId: string) {
     console.log("setCIEventAsNotified.eventId", eventId);
     try {

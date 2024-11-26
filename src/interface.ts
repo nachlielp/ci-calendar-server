@@ -107,7 +107,7 @@ export interface CINotification {
 
 export interface CINotificationWithUserAndEvent extends CINotification {
   ci_events: CIEvent;
-  users: CIUser;
+  users: CIUser & { alerts: { viewed: boolean }[] };
 }
 
 export interface PushNotificationToken {
@@ -138,6 +138,7 @@ export interface CIServerNotification {
   body: string;
   token: string;
   eventId: string;
+  requestId: string;
   userId: string;
   unreadCount: number;
   type: NotificationType;
