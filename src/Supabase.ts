@@ -215,9 +215,10 @@ class Supabase {
       const { data, error } = await this.supabase
         .from("requests")
         .select(
-          "*,users!inner (user_id,push_notification_tokens, alerts (viewed),receive_notifications)"
+          "*,user:users!inner (user_id,push_notification_tokens, alerts (viewed),receive_notifications)"
         )
-        .eq("sent", false);
+        .eq("to_send", true);
+
       if (error) {
         console.error("Error getting unfifilled request notifications:", error);
         throw error;
@@ -242,6 +243,8 @@ class Supabase {
           ? { request_id: requestId }
           : { ci_event_id: eventId }),
       };
+
+      console.log("addUserAlert.alertData", alertData);
 
       const { data, error } = await this.supabase
         .from("alerts")
@@ -302,6 +305,18 @@ class Supabase {
         .eq("id", requestId);
     } catch (error) {
       console.error("Error setting CI request as sent:", error);
+      throw error;
+    }
+  }
+
+  async setRequestAlertsAsNotViewed(requestIds: string[]) {
+    try {
+      await this.supabase
+        .from("requests")
+        .update({ sent: true, to_send: false })
+        .in("id", requestIds);
+    } catch (error) {
+      console.error("Error setting alerts as viewed:", error);
       throw error;
     }
   }

@@ -22,6 +22,11 @@ app.get("/api/due-notifications", async (req, res) => {
   res.send("ok");
 });
 
+app.get("/api/response-notifications", async (req, res) => {
+  await notifications.responseNotifications();
+  res.send("ok");
+});
+
 app.get("/api/cleanup-alerts", async (req, res) => {
   await Promise.all([
     notifications.supabase.cleanupAlerts(),

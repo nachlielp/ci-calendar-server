@@ -1,6 +1,7 @@
 import {
   CIEvent,
   CINotificationWithUserAndEvent,
+  CIRequestWithUser,
   CIServerNotification,
   NotificationType,
 } from "./interface";
@@ -13,6 +14,8 @@ const SUPSCRIPTION_BODY = "אירוע חדש";
 const REMINDER_BODY = "תזכורת";
 
 const RESPONSE_BODY = "תגובה לבקשה";
+
+const RESPONSE_TITLE = "תגובה לבקשה";
 
 class Notifications {
   supabase: any;
@@ -113,6 +116,51 @@ class Notifications {
     await this.supabase.setNotificationsAsSent(notificationIds);
   }
 
+  async responseNotifications() {
+    const notifications: CIRequestWithUser[] =
+      await this.supabase.getUnfulfilledRequestNotifications();
+    console.log("responseNotifications.notifications", notifications);
+
+    const formattedNotifications: CIServerNotification[] = notifications.map(
+      (notification) => {
+        const unreadCount = notification.user.alerts.filter(
+          (alert) => !alert.viewed
+        ).length;
+        return {
+          title: RESPONSE_TITLE,
+          body: RESPONSE_BODY,
+          token: notification.user.push_notification_tokens[0].token,
+          eventId: "",
+          userId: notification.user_id,
+          unreadCount: unreadCount,
+          type: NotificationType.response,
+          requestId: notification.id,
+        };
+      }
+    );
+
+    const results = await Promise.allSettled(
+      formattedNotifications.map((notification) => {
+        return this.sendNotification(notification);
+      })
+    );
+
+    return;
+    const failures = results.filter((r) => r.status === "rejected");
+
+    if (failures.length) {
+      //TODO report error
+      console.error(
+        `Failed to send ${failures.length} notifications:`,
+        failures
+      );
+    }
+
+    await this.supabase.setRequestAlertsAsNotViewed(
+      notifications.map((n) => n.user.alerts.map((a) => a.id)).flat()
+    );
+  }
+
   async sendNotification({
     title,
     body,
@@ -134,6 +182,7 @@ class Notifications {
         requestId: "",
       });
     } else if (type === NotificationType.response) {
+      console.log("sendNotification.response", requestId);
       await this.supabase.addUserAlert({
         userId,
         type,
@@ -142,7 +191,18 @@ class Notifications {
       });
     }
 
-    const url = "/event/" + eventId;
+    let url = "";
+
+    if (
+      type === NotificationType.reminder ||
+      type === NotificationType.subscription
+    ) {
+      url = "/event/" + eventId;
+    } else if (type === NotificationType.response) {
+      url = "/request/" + requestId;
+    }
+
+    console.log("sendNotification.url", url);
 
     const message = {
       data: {
@@ -150,6 +210,7 @@ class Notifications {
         body: body,
         url: url,
         eventId: eventId,
+        requestId: requestId,
         click_action: url,
         badge: (unreadCount + 1).toString(),
       },
