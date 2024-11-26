@@ -49,6 +49,89 @@ class Supabase {
     }
   }
 
+  // TODO: delete pasted due alerts
+  async cleanupAlerts() {
+    try {
+      // First get the alerts to be deleted
+      const { data: alertsToDelete, error: fetchError } = await this.supabase
+        .from("alerts")
+        .select("id,viewed,ci_event_id(start_date)");
+
+      if (fetchError) {
+        console.error("Error fetching alerts to delete:", fetchError);
+        throw fetchError;
+      }
+
+      if (!alertsToDelete?.length) {
+        console.log("No alerts to clean up");
+        return;
+      }
+
+      const alertIds = alertsToDelete
+        .map((alert: any) => {
+          if (alert.viewed) {
+            return alert.id;
+          }
+          if (
+            dayjs(alert.ci_event_id.start_date).isBefore(dayjs().startOf("day"))
+          ) {
+            return alert.id;
+          }
+          return null;
+        })
+        .filter((id: string | null) => id !== null);
+
+      const { error: deleteError } = await this.supabase
+        .from("alerts")
+        .delete()
+        .in("id", alertIds);
+
+      if (deleteError) {
+        console.error("Error deleting alerts:", deleteError);
+        throw deleteError;
+      }
+
+      console.log(`Cleaned up ${alertsToDelete.length} alerts`);
+    } catch (error) {
+      console.error("Error in cleanupAlerts:", error);
+      throw error;
+    }
+  }
+
+  async cleanupNotifications() {
+    try {
+      // TODO: delete pasted due notifications
+      const { data, error } = await this.supabase
+        .from("notifications")
+        .select("id,ci_event_id(start_date)");
+
+      if (error) {
+        console.error("Error fetching notifications to delete:", error);
+        throw error;
+      }
+      const pastedDueNotificationIds = data
+        .filter((notification: any) => {
+          return dayjs(notification.ci_event_id.start_date).isBefore(
+            dayjs().startOf("day")
+          );
+        })
+        .map((notification: any) => notification.id);
+
+      const { error: deleteError } = await this.supabase
+        .from("notifications")
+        .delete()
+        .in("id", pastedDueNotificationIds);
+
+      if (deleteError) {
+        console.error("Error deleting notifications:", deleteError);
+        throw deleteError;
+      }
+    } catch (error) {
+      console.error("Error in cleanupNotifications:", error);
+      throw error;
+    }
+  }
+
   async getNewActiveEvents(): Promise<CIEvent[]> {
     try {
       const { data, error } = await this.supabase
@@ -183,6 +266,18 @@ class Supabase {
         .eq("id", eventId);
     } catch (error) {
       console.error("Error setting CI event as notified:", error);
+      throw error;
+    }
+  }
+
+  async setCIEventsAsNotified(eventIds: string[]) {
+    try {
+      await this.supabase
+        .from("ci_events")
+        .update({ is_notified: true })
+        .in("id", eventIds);
+    } catch (error) {
+      console.error("Error setting CI events as notified:", error);
       throw error;
     }
   }
