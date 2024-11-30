@@ -66,7 +66,6 @@ class Notifications {
           failures
         );
       }
-      // TODO: uncomment
       this.supabase.setCIEventsAsNotified(events.map((e: CIEvent) => e.id));
     }
   }
@@ -111,41 +110,37 @@ class Notifications {
         failures
       );
     }
-    console.log("dueNotifications.results", results);
-    //TODO set as fulfilled
     await this.supabase.setNotificationsAsSent(notificationIds);
   }
 
   async responseNotifications() {
-    const notifications: CIRequestWithUser[] =
+    const requests: CIRequestWithUser[] =
       await this.supabase.getUnfulfilledRequestNotifications();
-    console.log("responseNotifications.notifications", notifications);
 
-    const formattedNotifications: CIServerNotification[] = notifications.map(
-      (notification) => {
-        const unreadCount = notification.user.alerts.filter(
+    const formattedRequests: CIServerNotification[] = requests.map(
+      (request) => {
+        const unreadCount = request.user.alerts.filter(
           (alert) => !alert.viewed
         ).length;
         return {
           title: RESPONSE_TITLE,
           body: RESPONSE_BODY,
-          token: notification.user.push_notification_tokens[0].token,
+          token: request.user.push_notification_tokens[0]?.token,
           eventId: "",
-          userId: notification.user_id,
+          userId: request.user_id,
           unreadCount: unreadCount,
           type: NotificationType.response,
-          requestId: notification.id,
+          requestId: request.id,
         };
       }
     );
 
     const results = await Promise.allSettled(
-      formattedNotifications.map((notification) => {
-        return this.sendNotification(notification);
+      formattedRequests.map((request) => {
+        return this.sendNotification(request);
       })
     );
 
-    return;
     const failures = results.filter((r) => r.status === "rejected");
 
     if (failures.length) {
@@ -156,9 +151,7 @@ class Notifications {
       );
     }
 
-    await this.supabase.setRequestAlertsAsNotViewed(
-      notifications.map((n) => n.user.alerts.map((a) => a.id)).flat()
-    );
+    await this.supabase.setRequestAlertsAsNotViewed(requests.map((r) => r.id));
   }
 
   async sendNotification({
@@ -182,13 +175,17 @@ class Notifications {
         requestId: "",
       });
     } else if (type === NotificationType.response) {
-      console.log("sendNotification.response", requestId);
       await this.supabase.addUserAlert({
         userId,
         type,
         eventId: "",
         requestId,
       });
+    }
+
+    //Create alerts but don't send if no token
+    if (!token) {
+      return;
     }
 
     let url = "";
@@ -201,8 +198,6 @@ class Notifications {
     } else if (type === NotificationType.response) {
       url = "/request/" + requestId;
     }
-
-    console.log("sendNotification.url", url);
 
     const message = {
       data: {

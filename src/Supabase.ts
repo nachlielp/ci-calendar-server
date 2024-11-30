@@ -55,25 +55,36 @@ class Supabase {
       // First get the alerts to be deleted
       const { data: alertsToDelete, error: fetchError } = await this.supabase
         .from("alerts")
-        .select("id,viewed,ci_event_id(start_date)");
+        .select(
+          "id,viewed,ci_event_id,ci_events(start_date),request_id,requests(to_send)"
+        );
 
       if (fetchError) {
         console.error("Error fetching alerts to delete:", fetchError);
         throw fetchError;
       }
 
-      if (!alertsToDelete?.length) {
+      if (!alertsToDelete || !alertsToDelete?.length) {
         console.log("No alerts to clean up");
         return;
       }
+
+      console.log("alertsToDelete", alertsToDelete);
 
       const alertIds = alertsToDelete
         .map((alert: any) => {
           if (alert.viewed) {
             return alert.id;
           }
+          if (alert.request_id && alert.requests["to_send"]) {
+            return alert.id;
+          }
+
           if (
-            dayjs(alert.ci_event_id.start_date).isBefore(dayjs().startOf("day"))
+            alert.ci_event_id &&
+            dayjs(alert.ci_events["start_date"])
+              .startOf("day")
+              .isBefore(dayjs().startOf("day"))
           ) {
             return alert.id;
           }
@@ -244,8 +255,6 @@ class Supabase {
           : { ci_event_id: eventId }),
       };
 
-      console.log("addUserAlert.alertData", alertData);
-
       const { data, error } = await this.supabase
         .from("alerts")
         .insert(alertData);
@@ -253,7 +262,6 @@ class Supabase {
         console.error("Error adding user alert:", error);
         throw error;
       }
-      console.log("addUserAlert.data", data);
     } catch (error) {
       console.error("Error adding user alert:", error);
       throw error;
@@ -273,7 +281,6 @@ class Supabase {
   }
 
   async setCIEventAsNotified(eventId: string) {
-    console.log("setCIEventAsNotified.eventId", eventId);
     try {
       await this.supabase
         .from("ci_events")
@@ -297,23 +304,11 @@ class Supabase {
     }
   }
 
-  async setCIRequestAsSent(requestId: string) {
-    try {
-      await this.supabase
-        .from("requests")
-        .update({ sent: true })
-        .eq("id", requestId);
-    } catch (error) {
-      console.error("Error setting CI request as sent:", error);
-      throw error;
-    }
-  }
-
   async setRequestAlertsAsNotViewed(requestIds: string[]) {
     try {
       await this.supabase
         .from("requests")
-        .update({ sent: true, to_send: false })
+        .update({ sent: true, to_send: false, viewed: false })
         .in("id", requestIds);
     } catch (error) {
       console.error("Error setting alerts as viewed:", error);
