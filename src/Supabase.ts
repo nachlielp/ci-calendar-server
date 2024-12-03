@@ -49,10 +49,9 @@ class Supabase {
     }
   }
 
-  // TODO: delete pasted due alerts
+  //Cleanup viewed alerts and those that are regarding events that have already started
   async cleanupAlerts() {
     try {
-      // First get the alerts to be deleted
       const { data: alertsToDelete, error: fetchError } = await this.supabase
         .from("alerts")
         .select(
@@ -68,8 +67,6 @@ class Supabase {
         console.log("No alerts to clean up");
         return;
       }
-
-      console.log("alertsToDelete", alertsToDelete);
 
       const alertIds = alertsToDelete
         .map((alert: any) => {
@@ -102,7 +99,7 @@ class Supabase {
         throw deleteError;
       }
 
-      console.log(`Cleaned up ${alertsToDelete.length} alerts`);
+      console.log(`Cleaned up ${alertIds.length} alerts`);
     } catch (error) {
       console.error("Error in cleanupAlerts:", error);
       throw error;

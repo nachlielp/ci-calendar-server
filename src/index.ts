@@ -52,7 +52,9 @@ cron.schedule("*/5 * * * *", async () => {
   ]);
   let endTime = new Date();
   console.log(
-    `Cron job completed in ${endTime.getTime() - startTime.getTime()}ms`
+    `Cron job completed in ${endTime.getTime() - startTime.getTime()}ms ${dayjs(
+      endTime
+    ).format("HH:mm:ss")}`
   );
 });
 
