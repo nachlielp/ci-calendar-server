@@ -59,13 +59,10 @@ class Notifications {
 
       const failures = results.filter((r) => r.status === "rejected");
 
-      if (failures.length) {
-        //TODO report error
-        console.error(
-          `Failed to send ${failures.length} notifications:`,
-          failures
-        );
-      }
+      //TODO: add logging
+      console.log(
+        `Sent ${events.length} notifications, ${failures.length} failures`
+      );
       this.supabase.setCIEventsAsNotified(events.map((e: CIEvent) => e.id));
     }
   }
@@ -103,13 +100,10 @@ class Notifications {
 
     const failures = results.filter((r) => r.status === "rejected");
 
-    if (failures.length) {
-      //TODO report error
-      console.error(
-        `Failed to send ${failures.length} notifications:`,
-        failures
-      );
-    }
+    //TODO: add logging
+    console.log(
+      `Sent ${notifications.length} due notifications, ${failures.length} failures`
+    );
     await this.supabase.setNotificationsAsSent(notificationIds);
   }
 
@@ -143,13 +137,10 @@ class Notifications {
 
     const failures = results.filter((r) => r.status === "rejected");
 
-    if (failures.length) {
-      //TODO report error
-      console.error(
-        `Failed to send ${failures.length} notifications:`,
-        failures
-      );
-    }
+    //TODO: add logging
+    console.log(
+      `Sent ${requests.length} response notifications, ${failures.length} failures`
+    );
 
     await this.supabase.setRequestAlertsAsNotViewed(requests.map((r) => r.id));
   }

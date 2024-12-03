@@ -108,7 +108,6 @@ class Supabase {
 
   async cleanupNotifications() {
     try {
-      // TODO: delete pasted due notifications
       const { data, error } = await this.supabase
         .from("notifications")
         .select("id,ci_event_id(start_date)");
@@ -134,6 +133,10 @@ class Supabase {
         console.error("Error deleting notifications:", deleteError);
         throw deleteError;
       }
+      //TODO: add logging
+      console.log(
+        `Cleaned up ${pastedDueNotificationIds.length} notifications`
+      );
     } catch (error) {
       console.error("Error in cleanupNotifications:", error);
       throw error;
