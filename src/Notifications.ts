@@ -47,7 +47,7 @@ class Notifications {
           this.sendNotification({
             title: event.title,
             body: SUPSCRIPTION_BODY,
-            token: subscriber.tokens[0],
+            token: subscriber.token,
             eventId: event.id,
             requestId: "",
             userId: event.user_id,
@@ -82,7 +82,7 @@ class Notifications {
         return {
           title: notification.ci_events.title,
           body: REMINDER_BODY,
-          token: notification.users.push_notification_tokens[0].token,
+          token: notification.users.fcm_token,
           eventId: notification.ci_event_id,
           userId: notification.user_id,
           unreadCount: unreadCount,
@@ -119,7 +119,7 @@ class Notifications {
         return {
           title: RESPONSE_TITLE,
           body: RESPONSE_BODY,
-          token: request.user.push_notification_tokens[0]?.token,
+          token: request.user.fcm_token,
           eventId: "",
           userId: request.user_id,
           unreadCount: unreadCount,

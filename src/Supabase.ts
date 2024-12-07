@@ -169,9 +169,7 @@ class Supabase {
     try {
       const { data, error } = await this.supabase
         .from("users")
-        .select(
-          "user_id, push_notification_tokens,subscriptions,alerts(viewed)"
-        )
+        .select("user_id, fcm_token,subscriptions,alerts(viewed)")
         .eq("receive_notifications", true);
 
       if (error) {
@@ -194,7 +192,7 @@ class Supabase {
       const { data, error } = await this.supabase
         .from("notifications")
         .select(
-          "*, ci_events!inner (title, start_date,segments),users!inner (user_id,push_notification_tokens, alerts (viewed),receive_notifications)"
+          "*, ci_events!inner (title, start_date,segments),users!inner (user_id,fcm_token, alerts (viewed),receive_notifications)"
         )
         .eq("sent", false)
         .eq("ci_events.hide", false)
@@ -226,7 +224,7 @@ class Supabase {
       const { data, error } = await this.supabase
         .from("requests")
         .select(
-          "*,user:users!inner (user_id,push_notification_tokens, alerts (viewed),receive_notifications)"
+          "*,user:users!inner (user_id,fcm_token, alerts (viewed),receive_notifications)"
         )
         .eq("to_send", true);
 

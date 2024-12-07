@@ -21,10 +21,10 @@ export function getEventListOfSubscribersData(
     return isTeacherSubscribed || isOrgSubscribed;
   });
 
-  const userTokensAndCounts = subscribedUsers.map((user) => ({
-    tokens: user.push_notification_tokens.map((token) => token.token),
+  const userTokenAndCounts = subscribedUsers.map((user) => ({
+    token: user.fcm_token,
     unreadCount: user.alerts.filter((alert) => !alert.viewed).length,
   }));
 
-  return userTokensAndCounts;
+  return userTokenAndCounts;
 }

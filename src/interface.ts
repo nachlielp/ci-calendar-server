@@ -1,12 +1,12 @@
 export interface CIUser {
   user_id: string;
-  push_notification_tokens: PushNotificationToken[];
   alerts: CIAlert[];
   receive_notifications: boolean;
   subscriptions: {
     teachers: string[];
     orgs: string[];
   };
+  fcm_token: string;
 }
 
 export interface CIEvent {
@@ -119,7 +119,7 @@ export interface PushNotificationToken {
 }
 
 export interface EventSubscribersData {
-  tokens: string[];
+  token: string;
   unreadCount: number;
 }
 
