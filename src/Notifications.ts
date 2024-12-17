@@ -8,6 +8,13 @@ import {
 import { supabase } from "./Supabase";
 import { sendMessage } from "./firebase-messages";
 import { getEventListOfSubscribersData } from "./util";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+dayjs.tz.setDefault("Asia/Jerusalem");
 
 const SUPSCRIPTION_BODY = "אירוע חדש";
 
@@ -71,10 +78,29 @@ class Notifications {
     const notifications: CINotificationWithUserAndEvent[] =
       await this.supabase.getUnfulfilledDueNotifications();
 
-    const notificationIds = notifications.map((n) => n.id);
+    const filteredNotifications = notifications.filter((n) => {
+      const startDate = dayjs(n.ci_events.start_date);
+      if (n.ci_events.is_multi_day) {
+        const targetDate = startDate.subtract(
+          parseInt(n.remind_in_hours),
+          "hours"
+        );
+        return targetDate.isBefore(dayjs());
+      }
+      const startHour = dayjs(n.ci_events.segments[0].startTime).hour();
+      const startTime = startDate.hour(startHour);
+      const targetDate = startTime.subtract(
+        parseInt(n.remind_in_hours),
+        "hours"
+      );
 
-    const formattedNotifications: CIServerNotification[] = notifications.map(
-      (notification) => {
+      return targetDate.isBefore(dayjs());
+    });
+
+    const notificationIds = filteredNotifications.map((n) => n.id);
+
+    const formattedNotifications: CIServerNotification[] =
+      filteredNotifications.map((notification) => {
         const unreadCount = notification.users.alerts.filter(
           (alert) => !alert.viewed
         ).length;
@@ -89,8 +115,7 @@ class Notifications {
           type: NotificationType.reminder,
           requestId: "",
         };
-      }
-    );
+      });
 
     const results = await Promise.allSettled(
       formattedNotifications.map((notification) => {
@@ -102,7 +127,7 @@ class Notifications {
 
     //TODO: add logging
     console.log(
-      `Sent ${notifications.length} due notifications, ${failures.length} failures`
+      `Sent ${filteredNotifications.length} due notifications, ${failures.length} failures`
     );
     await this.supabase.setNotificationsAsSent(notificationIds);
   }

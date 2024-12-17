@@ -1,5 +1,5 @@
 export interface CIUser {
-  user_id: string;
+  id: string;
   alerts: CIAlert[];
   receive_notifications: boolean;
   subscriptions: {
@@ -18,6 +18,7 @@ export interface CIEvent {
   is_multi_day: boolean;
   multi_day_teachers: UserOption[] | null;
   organisations: UserOption[];
+  start_date: string;
 }
 export interface UserOption {
   value: string;
