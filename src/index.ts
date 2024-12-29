@@ -42,7 +42,15 @@ app.get("/api/cleanup-alerts", async (req, res) => {
 });
 
 cron.schedule("*/5 * * * *", async () => {
+  console.log("Running cron job");
   if (!process.env.IS_ACTIVE_SERVER) return;
+
+  const isActive = await notifications.supabase.isNotificationEnabled();
+
+  if (!isActive) {
+    console.log("Server is not active, skipping cron job");
+    return;
+  }
 
   //TODO add logging
   let startTime = new Date();
