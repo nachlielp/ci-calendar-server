@@ -28,6 +28,11 @@ app.get("/api/response-notifications", async (req, res) => {
   res.send("ok");
 });
 
+app.get("/api/admin-notifications", async (req, res) => {
+  await notifications.notifyAdminsOfNewRequests();
+  res.send("ok");
+});
+
 app.get("/api/cleanup-alerts", async (req, res) => {
   await Promise.all([
     notifications.supabase.cleanupAlerts(),
@@ -37,6 +42,8 @@ app.get("/api/cleanup-alerts", async (req, res) => {
 });
 
 cron.schedule("*/5 * * * *", async () => {
+  if (!process.env.IS_ACTIVE_SERVER) return;
+
   //TODO add logging
   let startTime = new Date();
   console.log("Running cron job");
@@ -49,6 +56,7 @@ cron.schedule("*/5 * * * *", async () => {
     notifications.notifySubscribers(),
     notifications.responseNotifications(),
     notifications.dueNotifications(),
+    notifications.notifyAdminsOfNewRequests(),
   ]);
   let endTime = new Date();
   console.log(

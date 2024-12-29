@@ -5,9 +5,11 @@ import {
   AddUserAlertData,
   CIEvent,
   CINotificationWithUserAndEvent,
+  CIRequest,
   CIRequestWithUser,
   CIUser,
   NotificationType,
+  UserType,
 } from "./interface";
 
 dotenv.config();
@@ -192,7 +194,7 @@ class Supabase {
       const { data, error } = await this.supabase
         .from("notifications")
         .select(
-          "*, ci_events!inner (title, start_date,segments),users!inner (id,fcm_token, alerts (viewed),receive_notifications)"
+          "*, ci_events!inner (title, start_date,segments,is_multi_day),users!inner (id,fcm_token, alerts (viewed),receive_notifications)"
         )
         .eq("sent", false)
         .eq("ci_events.hide", false)
@@ -243,19 +245,26 @@ class Supabase {
   }
 
   async addUserAlert(data: AddUserAlertData) {
-    const { userId, type, eventId, requestId } = data;
+    const { userId, type, eventId, requestId, title } = data;
+    console.log("__data", data);
     try {
       const alertData = {
         user_id: userId,
         type,
         ...(type === NotificationType.response
           ? { request_id: requestId }
-          : { ci_event_id: eventId }),
+          : type === NotificationType.reminder
+          ? { ci_event_id: eventId }
+          : {}),
+        title,
       };
 
       const { data, error } = await this.supabase
         .from("alerts")
-        .insert(alertData);
+        .insert(alertData)
+        .select();
+
+      console.log("added alert", alertData);
       if (error) {
         console.error("Error adding user alert:", error);
         throw error;
@@ -310,6 +319,55 @@ class Supabase {
         .in("id", requestIds);
     } catch (error) {
       console.error("Error setting alerts as viewed:", error);
+      throw error;
+    }
+  }
+
+  async getAdminUsers() {
+    try {
+      const { data, error } = await this.supabase
+        .from("users")
+        .select("id,fcm_token,alerts(viewed)")
+        .eq("receive_notifications", true)
+        .eq("user_type", UserType.admin);
+
+      if (error) {
+        console.error("Error getting admin users:", error);
+        throw error;
+      }
+      return data;
+    } catch (error) {
+      console.error("Error getting admin users:", error);
+      throw error;
+    }
+  }
+
+  async getNewRequests(): Promise<CIRequest[]> {
+    try {
+      const { data, error } = await this.supabase
+        .from("requests")
+        .select("*")
+        .or("admins_notified.is.null,admins_notified.eq.false");
+
+      if (error) {
+        console.error("Error getting new requests:", error);
+        throw error;
+      }
+      return data;
+    } catch (error) {
+      console.error("Error getting new requests:", error);
+      throw error;
+    }
+  }
+
+  async setRequestsAsAdminsNotified(requestIds: string[]) {
+    try {
+      await this.supabase
+        .from("requests")
+        .update({ admins_notified: true })
+        .in("id", requestIds);
+    } catch (error) {
+      console.error("Error setting requests as admins notified:", error);
       throw error;
     }
   }

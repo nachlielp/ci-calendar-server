@@ -1,6 +1,7 @@
 import {
   CIEvent,
   CINotificationWithUserAndEvent,
+  CIRequest,
   CIRequestWithUser,
   CIServerNotification,
   NotificationType,
@@ -23,6 +24,8 @@ const REMINDER_BODY = "תזכורת";
 const RESPONSE_BODY = "תגובה לבקשה";
 
 const RESPONSE_TITLE = "תגובה לבקשה";
+
+const ADMIN_NOTIFICATION_TITLE = "בקשה חדשה";
 
 class Notifications {
   supabase: any;
@@ -64,7 +67,7 @@ class Notifications {
         )
       );
 
-      const failures = results.filter((r) => r.status === "rejected");
+      const failures = results?.filter((r) => r.status === "rejected");
 
       //TODO: add logging
       console.log(
@@ -170,6 +173,57 @@ class Notifications {
     await this.supabase.setRequestAlertsAsNotViewed(requests.map((r) => r.id));
   }
 
+  async notifyAdminsOfNewRequests() {
+    const admins = await this.supabase.getAdminUsers();
+    const requests: CIRequestWithUser[] = await this.supabase.getNewRequests();
+
+    const requestsData = requests.map((request: CIRequest) => {
+      return {
+        title: ADMIN_NOTIFICATION_TITLE,
+        body: "בקשה מאת " + request.name,
+      };
+    });
+
+    let formattedRequests = [];
+
+    for (const admin of admins) {
+      let openAlerts = 0;
+      for (const alert of admin.alerts) {
+        if (!alert.viewed) {
+          openAlerts++;
+        }
+      }
+      for (const request of requestsData) {
+        openAlerts++;
+        formattedRequests.push({
+          title: request.title,
+          body: request.body,
+          token: admin.fcm_token,
+          userId: admin.id,
+          unreadCount: openAlerts,
+          type: NotificationType.admin_response,
+          requestId: "",
+          eventId: "",
+        });
+      }
+    }
+
+    const results = await Promise.allSettled(
+      formattedRequests.map((request) => {
+        return this.sendNotification(request);
+      })
+    );
+
+    const failures = results.filter((r) => r.status === "rejected");
+
+    //TODO: add logging
+    console.log(
+      `Sent ${requests.length} response notifications, ${failures.length} failures`
+    );
+
+    await this.supabase.setRequestsAsAdminsNotified(requests.map((r) => r.id));
+  }
+
   async sendNotification({
     title,
     body,
@@ -189,6 +243,7 @@ class Notifications {
         type,
         eventId,
         requestId: "",
+        title,
       });
     } else if (type === NotificationType.response) {
       await this.supabase.addUserAlert({
@@ -196,6 +251,15 @@ class Notifications {
         type,
         eventId: "",
         requestId,
+        title: "",
+      });
+    } else if (type === NotificationType.admin_response) {
+      await this.supabase.addUserAlert({
+        userId,
+        type,
+        eventId: "",
+        requestId: "",
+        title: body,
       });
     }
 
@@ -239,7 +303,6 @@ class Notifications {
       token: token,
     };
 
-    console.log("sendNotification.message", message);
     return await sendMessage(message);
   }
 }

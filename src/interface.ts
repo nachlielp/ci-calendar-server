@@ -46,6 +46,7 @@ export interface CIRequest {
   number: number;
   sent: boolean;
   viewed: boolean;
+  admins_notified: boolean;
 }
 export enum RequestType {
   make_profile = "make_profile",
@@ -78,6 +79,7 @@ export enum NotificationType {
   reminder = "reminder",
   subscription = "subscription",
   response = "response",
+  admin_response = "admin_response",
 }
 export interface CIEventSegments {
   endTime: string;
@@ -150,4 +152,13 @@ export interface AddUserAlertData {
   type: NotificationType;
   eventId?: string;
   requestId?: string;
+  title: string;
+}
+
+export enum UserType {
+  admin = "admin",
+  creator = "creator",
+  org = "org",
+  teacher = "teacher",
+  user = "user",
 }
