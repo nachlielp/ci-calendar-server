@@ -5,6 +5,9 @@ import bodyParser from "body-parser";
 import { notifications } from "./Notifications";
 import cron from "node-cron";
 import dayjs from "dayjs";
+import { translateText } from "./translate";
+import { Language } from "./interface";
+import { fixCIEventSegments, updateIAddressWithEnglishAddress } from "./util";
 dotenv.config();
 
 const app = express();
@@ -41,38 +44,82 @@ app.get("/api/cleanup-alerts", async (req, res) => {
   res.send("ok");
 });
 
-cron.schedule("*/5 * * * *", async () => {
-  console.log("Running cron job");
-  if (!process.env.IS_ACTIVE_SERVER) return;
-
-  const isActive = await notifications.supabase.isNotificationEnabled();
-
-  if (!isActive) {
-    console.log("Server is not active, skipping cron job");
-    return;
-  }
-
-  //TODO add logging
-  let startTime = new Date();
-  console.log("Running cron job");
-  console.log("startTime", dayjs(startTime).format("HH:mm:ss"));
-  await Promise.allSettled([
-    notifications.supabase.cleanupAlerts(),
-    notifications.supabase.cleanupNotifications(),
+app.post("/api/translate-title-by-id", async (req, res) => {
+  const { id } = req.body;
+  const event = await notifications.supabase.getCIEventById(id);
+  const [enTitle, ruTitle] = await Promise.all([
+    translateText(event.title, Language.en),
+    translateText(event.title, Language.ru),
   ]);
-  await Promise.allSettled([
-    notifications.notifySubscribers(),
-    notifications.responseNotifications(),
-    notifications.dueNotifications(),
-    notifications.notifyAdminsOfNewRequests(),
-  ]);
-  let endTime = new Date();
-  console.log(
-    `Cron job completed in ${endTime.getTime() - startTime.getTime()}ms ${dayjs(
-      endTime
-    ).format("HH:mm:ss")}`
-  );
+
+  const fixedEvent = fixCIEventSegments(event);
+
+  const iAddress = await updateIAddressWithEnglishAddress(event.address);
+
+  const newCIEvent = {
+    ...fixedEvent,
+    lng_titles: { en: enTitle, ru: ruTitle },
+    address: iAddress,
+  };
+  await notifications.supabase.updateCIEvent(newCIEvent);
+  res.send(newCIEvent);
 });
+
+app.get("/api/update-translations", async (req, res) => {
+  return;
+  const events = await notifications.supabase.getAllFutureEvents();
+  for (const event of events) {
+    const [enTitle, ruTitle] = await Promise.all([
+      translateText(event.title, Language.en),
+      translateText(event.title, Language.ru),
+    ]);
+
+    const fixedEvent = fixCIEventSegments(event);
+
+    const iAddress = await updateIAddressWithEnglishAddress(event.address);
+
+    const newCIEvent = {
+      ...fixedEvent,
+      lng_titles: { en: enTitle, ru: ruTitle },
+      address: iAddress,
+    };
+    await notifications.supabase.updateCIEvent(newCIEvent);
+  }
+  res.send(events);
+});
+
+// cron.schedule("*/5 * * * *", async () => {
+//   console.log("Running cron job");
+//   if (!process.env.IS_ACTIVE_SERVER) return;
+
+//   const isActive = await notifications.supabase.isNotificationEnabled();
+
+//   if (!isActive) {
+//     console.log("Server is not active, skipping cron job");
+//     return;
+//   }
+
+//   //TODO add logging
+//   let startTime = new Date();
+//   console.log("Running cron job");
+//   console.log("startTime", dayjs(startTime).format("HH:mm:ss"));
+//   await Promise.allSettled([
+//     notifications.supabase.cleanupAlerts(),
+//     notifications.supabase.cleanupNotifications(),
+//   ]);
+//   await Promise.allSettled([
+//     notifications.notifySubscribers(),
+//     notifications.responseNotifications(),
+//     notifications.dueNotifications(),
+//     notifications.notifyAdminsOfNewRequests(),
+//   ]);
+//   let endTime = new Date();
+//   console.log(
+//     `Cron job completed in ${endTime.getTime() - startTime.getTime()}ms ${dayjs(
+//       endTime
+//     ).format("HH:mm:ss")}`
+//   );
+// });
 
 const PORT = process.env.LOCAL_PORT || 3000;
 

@@ -371,6 +371,55 @@ class Supabase {
       throw error;
     }
   }
+
+  async getCIEventById(id: string) {
+    try {
+      const { data, error } = await this.supabase
+        .from("ci_events")
+        .select("*")
+        .eq("id", id)
+        .single();
+
+      if (error) {
+        console.error("Error getting CI event by id:", error);
+        throw error;
+      }
+      return data;
+    } catch (error) {
+      console.error("Error getting CI event by id:", error);
+      throw error;
+    }
+  }
+
+  async getAllFutureEvents() {
+    try {
+      const { data, error } = await this.supabase
+        .from("ci_events")
+        .select("*")
+        .gte("start_date", dayjs().format("YYYY-MM-DD"));
+
+      if (error) {
+        console.error("Error getting all future events:", error);
+        throw error;
+      }
+      return data;
+    } catch (error) {
+      console.error("Error getting all future events:", error);
+      throw error;
+    }
+  }
+
+  async updateCIEventTitle(ciEvent: CIEvent) {
+    try {
+      await this.supabase
+        .from("ci_events")
+        .update(ciEvent)
+        .eq("id", ciEvent.id);
+    } catch (error) {
+      console.error("Error updating CI event title:", error);
+      throw error;
+    }
+  }
 }
 
 export const supabase = new Supabase();

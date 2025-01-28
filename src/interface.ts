@@ -8,17 +8,62 @@ export interface CIUser {
   };
   fcm_token: string;
 }
-
+interface IPrice {
+  sum: number;
+  title: string;
+}
+interface ILink {
+  link: string;
+  title: string;
+}
+export interface UserBio {
+  user_id: string;
+  bio_name: string;
+  page_url: string;
+  page_title: string;
+  page_url_2: string;
+  page_title_2: string;
+  show_profile: boolean;
+  allow_tagging: boolean;
+  img: string;
+  about: string;
+  user_type: UserType;
+}
 export interface CIEvent {
   id: string;
+  short_id: string;
+  users: UserBio[];
+  owners: UserOption[];
   title: string;
-  user_id: string;
+  description: string;
+  address: IAddress;
+  created_at: string;
+  updated_at: string;
+  hide: boolean;
+  start_date: string;
+  end_date: string;
+  district: string;
+  type: string;
+  price: IPrice[];
+  links: ILink[];
   segments: CIEventSegments[];
+  user_id: string;
   source_template_id: string | null;
   is_multi_day: boolean;
   multi_day_teachers: UserOption[] | null;
   organisations: UserOption[];
-  start_date: string;
+  is_notified: boolean;
+  creator: {
+    user_id: string;
+    full_name: string;
+  };
+  cancelled: boolean;
+  cancelled_text: string;
+  recurring_ref_key?: string;
+  lng_titles?: {
+    ru?: string;
+    en?: string;
+  };
 }
 export interface UserOption {
   value: string;
@@ -91,6 +136,7 @@ export interface CIEventSegments {
 export interface IAddress {
   place_id: string;
   label: string;
+  en_label?: string;
 }
 
 export interface CINotification {
@@ -161,4 +207,9 @@ export enum UserType {
   org = "org",
   teacher = "teacher",
   user = "user",
+}
+export enum Language {
+  he = "he",
+  en = "en",
+  ru = "ru",
 }
