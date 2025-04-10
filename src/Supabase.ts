@@ -10,6 +10,7 @@ import {
   CIUser,
   NotificationType,
   UserType,
+  WAUser,
 } from "./interface";
 
 dotenv.config();
@@ -409,7 +410,7 @@ class Supabase {
     }
   }
 
-  async updateCIEventTitle(ciEvent: CIEvent) {
+  async updateCIEvent(ciEvent: CIEvent) {
     try {
       await this.supabase
         .from("ci_events")
@@ -418,6 +419,81 @@ class Supabase {
     } catch (error) {
       console.error("Error updating CI event title:", error);
       throw error;
+    }
+  }
+
+  async getWAUsers() {
+    try {
+      const { data, error } = await this.supabase
+        .from("wa_users")
+        .select("*")
+        .eq("is_subscribed", true);
+
+      if (error) {
+        console.error("Error getting WA users:", error);
+        throw error;
+      }
+      if (!data) {
+        return [];
+      }
+      return data as WAUser[];
+    } catch (error) {
+      console.error("Error getting WA users:", error);
+      throw error;
+    }
+  }
+
+  async getThisWeekCIEvents() {
+    const today = dayjs();
+
+    const currentDay = today.day();
+
+    const daysToSaturday = currentDay === 6 ? 0 : 6 - currentDay;
+
+    const formDate = today.format("YYYY-MM-DD");
+
+    const toDate = dayjs(formDate)
+      .add(daysToSaturday, "day")
+      .format("YYYY-MM-DD");
+
+    try {
+      const { data, error } = await this.supabase
+        .from("ci_events")
+        .select("id,district,title")
+        .gte("start_date", formDate)
+        .lte("start_date", toDate)
+        .not("hide", "is", true)
+        .not("cancelled", "is", true);
+
+      if (error) {
+        console.error("Error getting this week CI events:", error);
+        throw error;
+      }
+      return data as { id: string; district: string; title: string }[];
+    } catch (error) {
+      console.error("Error getting this week CI events:", error);
+      throw error;
+    }
+  }
+
+  async logTwilioResult(
+    twilioResult: object,
+    userId: string,
+    from: string,
+    to: string
+  ) {
+    try {
+      const result = await this.supabase.from("wa_twilio_logs").insert({
+        result: twilioResult,
+        wa_users_id: userId,
+        trigger: "cron_job",
+        from,
+        to,
+      });
+      return result.data;
+    } catch (e) {
+      console.error("Error logging twilio result:", e);
+      throw new Error("Error logging twilio result");
     }
   }
 }

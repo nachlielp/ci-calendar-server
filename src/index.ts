@@ -4,10 +4,9 @@ import cors from "cors";
 import bodyParser from "body-parser";
 import { notifications } from "./Notifications";
 import cron from "node-cron";
-import dayjs from "dayjs";
-import { translateText } from "./translate";
-import { Language } from "./interface";
-import { fixCIEventSegments, updateIAddressWithEnglishAddress } from "./util";
+import { WAUser, districtOptions, SelectOption } from "./interface";
+import { twilio } from "./Twilio";
+import { supabase } from "./Supabase";
 dotenv.config();
 
 const app = express();
@@ -44,82 +43,268 @@ app.get("/api/cleanup-alerts", async (req, res) => {
   res.send("ok");
 });
 
-app.post("/api/translate-title-by-id", async (req, res) => {
-  const { id } = req.body;
-  const event = await notifications.supabase.getCIEventById(id);
-  const [enTitle, ruTitle] = await Promise.all([
-    translateText(event.title, Language.en),
-    translateText(event.title, Language.ru),
-  ]);
+app.get("/api/get-wa-users", async (req, res) => {
+  const waUsers = await notifications.supabase.getWAUsers();
+  res.send(waUsers);
+});
+app.get("/api/get-wa-ci-events", async (req, res) => {
+  const waCiEvents = await notifications.supabase.getThisWeekCIEvents();
 
-  const fixedEvent = fixCIEventSegments(event);
-
-  const iAddress = await updateIAddressWithEnglishAddress(event.address);
-
-  const newCIEvent = {
-    ...fixedEvent,
-    lng_titles: { en: enTitle, ru: ruTitle },
-    address: iAddress,
-  };
-  await notifications.supabase.updateCIEvent(newCIEvent);
-  res.send(newCIEvent);
+  let jreEventsCount = 0;
+  let centerEventsCount = 0;
+  let northEventsCount = 0;
+  let southEventsCount = 0;
+  waCiEvents.forEach((event: { district: string }) => {
+    if (event.district === "jerusalem") jreEventsCount++;
+    else if (event.district === "center") centerEventsCount++;
+    else if (event.district === "south") southEventsCount++;
+    else northEventsCount++;
+  });
+  res.send({
+    jreEventsCount,
+    centerEventsCount,
+    northEventsCount,
+    southEventsCount,
+  });
 });
 
-app.get("/api/update-translations", async (req, res) => {
-  return;
-  const events = await notifications.supabase.getAllFutureEvents();
-  for (const event of events) {
-    const [enTitle, ruTitle] = await Promise.all([
-      translateText(event.title, Language.en),
-      translateText(event.title, Language.ru),
-    ]);
+app.get("/api/get-wa-ci-events-by-district", async (req, res) => {
+  const waCiEvents = await notifications.supabase.getThisWeekCIEvents();
 
-    const fixedEvent = fixCIEventSegments(event);
+  let jreEventsCount = 0;
+  let centerEventsCount = 0;
+  let northEventsCount = 0;
+  let southEventsCount = 0;
+  waCiEvents.forEach((event: { district: string }) => {
+    if (event.district === "jerusalem") jreEventsCount++;
+    else if (event.district === "center") centerEventsCount++;
+    else if (event.district === "south") southEventsCount++;
+    else northEventsCount++;
+  });
 
-    const iAddress = await updateIAddressWithEnglishAddress(event.address);
-
-    const newCIEvent = {
-      ...fixedEvent,
-      lng_titles: { en: enTitle, ru: ruTitle },
-      address: iAddress,
+  const waUsers = await notifications.supabase.getWAUsers();
+  console.log(waUsers);
+  const formattedMessages: {
+    phone: string;
+    name: string;
+    filters: string;
+    eventsCount: number;
+  }[] = waUsers.map((user: WAUser) => {
+    const eventsCount = waCiEvents.filter((event: { district: string }) =>
+      user.filter.includes(event.district)
+    ).length;
+    return {
+      phone: user.phone,
+      name: user.name,
+      filters: user.filter
+        .map((filter: string) => {
+          const option = districtOptions.find(
+            (option: SelectOption) => option.value === filter
+          );
+          return option?.label;
+        })
+        .join(", "),
+      eventsCount,
     };
-    await notifications.supabase.updateCIEvent(newCIEvent);
-  }
-  res.send(events);
+  });
+
+  const results = await Promise.allSettled(
+    formattedMessages.map((message) => {
+      return twilio.sendTemplate(
+        `whatsapp:+${message.phone}`,
+        process.env.TWILIO_TEMPLATE_WEEKLY_SCHEDULE!,
+        {
+          "1": message.name,
+          "2": message.filters,
+          "3": message.eventsCount.toString(),
+        }
+      );
+    })
+  );
+
+  const formattedLogResults = results.map((result, index) => {
+    const user = waUsers.find(
+      (user: WAUser) =>
+        result.status === "fulfilled" && result.value.to.includes(user.phone)
+    );
+    return {
+      wa_user_id: user?.id,
+      from: process.env.TWILIO_FROM_NUMBER!,
+      to: user?.phone,
+      result,
+    };
+  });
+
+  await Promise.allSettled(
+    formattedLogResults.map((logResult) => {
+      return supabase.logTwilioResult(
+        logResult.result,
+        logResult.wa_user_id,
+        logResult.from,
+        logResult.to
+      );
+    })
+  );
+  res.send(formattedLogResults);
 });
 
-// cron.schedule("*/5 * * * *", async () => {
-//   console.log("Running cron job");
-//   if (!process.env.IS_ACTIVE_SERVER) return;
+cron.schedule("0 10 * * 0", async () => {
+  const waCiEvents = await notifications.supabase.getThisWeekCIEvents();
 
-//   const isActive = await notifications.supabase.isNotificationEnabled();
+  let jreEventsCount = 0;
+  let centerEventsCount = 0;
+  let northEventsCount = 0;
+  let southEventsCount = 0;
+  waCiEvents.forEach((event: { district: string }) => {
+    if (event.district === "jerusalem") jreEventsCount++;
+    else if (event.district === "center") centerEventsCount++;
+    else if (event.district === "south") southEventsCount++;
+    else northEventsCount++;
+  });
 
-//   if (!isActive) {
-//     console.log("Server is not active, skipping cron job");
-//     return;
-//   }
+  const waUsers = await notifications.supabase.getWAUsers();
+  console.log(waUsers);
+  const formattedMessages: {
+    phone: string;
+    name: string;
+    filters: string;
+    eventsCount: number;
+  }[] = waUsers.map((user: WAUser) => {
+    const eventsCount = waCiEvents.filter((event: { district: string }) =>
+      user.filter.includes(event.district)
+    ).length;
+    return {
+      phone: user.phone,
+      name: user.name,
+      filters: user.filter
+        .map((filter: string) => {
+          const option = districtOptions.find(
+            (option: SelectOption) => option.value === filter
+          );
+          return option?.label;
+        })
+        .join(", "),
+      eventsCount,
+    };
+  });
 
-//   //TODO add logging
-//   let startTime = new Date();
-//   console.log("Running cron job");
-//   console.log("startTime", dayjs(startTime).format("HH:mm:ss"));
-//   await Promise.allSettled([
-//     notifications.supabase.cleanupAlerts(),
-//     notifications.supabase.cleanupNotifications(),
-//   ]);
-//   await Promise.allSettled([
-//     notifications.notifySubscribers(),
-//     notifications.responseNotifications(),
-//     notifications.dueNotifications(),
-//     notifications.notifyAdminsOfNewRequests(),
-//   ]);
-//   let endTime = new Date();
-//   console.log(
-//     `Cron job completed in ${endTime.getTime() - startTime.getTime()}ms ${dayjs(
-//       endTime
-//     ).format("HH:mm:ss")}`
-//   );
-// });
+  const results = await Promise.allSettled(
+    formattedMessages.map((message) => {
+      return twilio.sendTemplate(
+        `whatsapp:+${message.phone}`,
+        process.env.TWILIO_TEMPLATE_WEEKLY_SCHEDULE!,
+        {
+          "1": message.name,
+          "2": message.filters,
+          "3": message.eventsCount.toString(),
+        }
+      );
+    })
+  );
+
+  const formattedLogResults = results.map((result, index) => {
+    const user = waUsers.find(
+      (user: WAUser) =>
+        result.status === "fulfilled" && result.value.to.includes(user.phone)
+    );
+    return {
+      wa_user_id: user?.id,
+      from: process.env.TWILIO_FROM_NUMBER!,
+      to: user?.phone,
+      result,
+    };
+  });
+
+  await Promise.allSettled(
+    formattedLogResults.map((logResult) => {
+      return supabase.logTwilioResult(
+        logResult.result,
+        logResult.wa_user_id,
+        logResult.from,
+        logResult.to
+      );
+    })
+  );
+});
+cron.schedule("0 10 * * 4", async () => {
+  const waCiEvents = await notifications.supabase.getThisWeekCIEvents();
+
+  let jreEventsCount = 0;
+  let centerEventsCount = 0;
+  let northEventsCount = 0;
+  let southEventsCount = 0;
+
+  waCiEvents.forEach((event: { district: string }) => {
+    if (event.district === "jerusalem") jreEventsCount++;
+    else if (event.district === "center") centerEventsCount++;
+    else if (event.district === "south") southEventsCount++;
+    else northEventsCount++;
+  });
+
+  const waUsers = await notifications.supabase.getWAUsers();
+  console.log(waUsers);
+  const formattedMessages: {
+    phone: string;
+    name: string;
+    filters: string;
+    eventsCount: number;
+  }[] = waUsers.map((user: WAUser) => {
+    const eventsCount = waCiEvents.filter((event: { district: string }) =>
+      user.filter.includes(event.district)
+    ).length;
+    return {
+      phone: user.phone,
+      name: user.name,
+      filters: user.filter
+        .map((filter: string) => {
+          const option = districtOptions.find(
+            (option: SelectOption) => option.value === filter
+          );
+          return option?.label;
+        })
+        .join(", "),
+      eventsCount,
+    };
+  });
+
+  const results = await Promise.allSettled(
+    formattedMessages.map((message) => {
+      return twilio.sendTemplate(
+        `whatsapp:+${message.phone}`,
+        process.env.TWILIO_TEMPLATE_WEEKEND_SCHEDULE!,
+        {
+          "1": message.name,
+          "2": message.filters,
+          "3": message.eventsCount.toString(),
+        }
+      );
+    })
+  );
+
+  const formattedLogResults = results.map((result, index) => {
+    const user = waUsers.find(
+      (user: WAUser) =>
+        result.status === "fulfilled" && result.value.to.includes(user.phone)
+    );
+    return {
+      wa_user_id: user?.id,
+      from: process.env.TWILIO_FROM_NUMBER!,
+      to: user?.phone,
+      result,
+    };
+  });
+
+  await Promise.allSettled(
+    formattedLogResults.map((logResult) => {
+      return supabase.logTwilioResult(
+        logResult.result,
+        logResult.wa_user_id,
+        logResult.from,
+        logResult.to
+      );
+    })
+  );
+});
 
 const PORT = process.env.LOCAL_PORT || 3000;
 

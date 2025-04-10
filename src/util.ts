@@ -65,13 +65,23 @@ async function getAddressFromGooglePlaceId(placeId: string): Promise<string> {
   }
 }
 
-export function fixCIEventSegments(ciEvent: CIEvent): CIEvent {
+export function fixCIEventSegments(ciEvent: CIEvent): CIEvent | null {
+  let hasUpdates = false;
+
   const segments = ciEvent.segments;
   const fixedSegments = segments.map((segment) => {
+    const fixedTags = segment.tags.map((tag) => {
+      if (tag === "pre-registration") {
+        hasUpdates = true;
+        return "preRegistration";
+      }
+      return tag;
+    });
     return {
       ...segment,
-      type: segment.type === "jame" ? "jam" : segment.type,
+      tags: fixedTags,
     };
   });
-  return { ...ciEvent, segments: fixedSegments };
+
+  return hasUpdates ? { ...ciEvent, segments: fixedSegments } : null;
 }

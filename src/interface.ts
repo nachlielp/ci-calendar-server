@@ -65,6 +65,7 @@ export interface CIEvent {
     en?: string;
   };
 }
+
 export interface UserOption {
   value: string;
   label: string;
@@ -213,3 +214,28 @@ export enum Language {
   en = "en",
   ru = "ru",
 }
+
+export interface WAUser {
+  id: string;
+  name: string;
+  phone: string;
+  created_at: string;
+  is_subscribed: boolean;
+  filter: string[];
+}
+
+export interface SelectOption {
+  value: string;
+  label: string;
+}
+
+export const districtOptions: SelectOption[] = [
+  { value: "center", label: "מרכז" },
+  { value: "jerusalem", label: "ירושלים" },
+  { value: "galilee", label: "גליל" },
+  { value: "haifa", label: "חיפה" },
+  { value: "carmel", label: "חוף כרמל" },
+  { value: "pardesHanna", label: "פרדס חנה" },
+  { value: "south", label: "דרום" },
+  { value: "north", label: "צפון" },
+];
