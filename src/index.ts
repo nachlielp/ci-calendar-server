@@ -148,7 +148,8 @@ app.get("/api/get-wa-ci-events-by-district", async (req, res) => {
   res.send(formattedLogResults);
 });
 
-cron.schedule("0 10 * * 0", async () => {
+//dose not return anything...
+app.get("/api/send-weekly-schedule", async (req, res) => {
   const waCiEvents = await notifications.supabase.getThisWeekCIEvents();
 
   let jreEventsCount = 0;
@@ -225,15 +226,17 @@ cron.schedule("0 10 * * 0", async () => {
       );
     })
   );
+
+  res.send(formattedLogResults);
 });
-cron.schedule("0 10 * * 4", async () => {
+
+cron.schedule("0 10 * * 0", async () => {
   const waCiEvents = await notifications.supabase.getThisWeekCIEvents();
 
   let jreEventsCount = 0;
   let centerEventsCount = 0;
   let northEventsCount = 0;
   let southEventsCount = 0;
-
   waCiEvents.forEach((event: { district: string }) => {
     if (event.district === "jerusalem") jreEventsCount++;
     else if (event.district === "center") centerEventsCount++;
@@ -271,7 +274,7 @@ cron.schedule("0 10 * * 4", async () => {
     formattedMessages.map((message) => {
       return twilio.sendTemplate(
         `whatsapp:+${message.phone}`,
-        process.env.TWILIO_TEMPLATE_WEEKEND_SCHEDULE!,
+        process.env.TWILIO_TEMPLATE_WEEKLY_SCHEDULE!,
         {
           "1": message.name,
           "2": message.filters,
