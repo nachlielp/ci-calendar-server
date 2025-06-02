@@ -7,6 +7,7 @@ import cron from "node-cron";
 import { WAUser, districtOptions, SelectOption } from "./interface";
 import { twilio } from "./Twilio";
 import { supabase } from "./Supabase";
+import dayjs from "dayjs";
 dotenv.config();
 
 const app = express();
@@ -231,6 +232,7 @@ app.get("/api/send-weekly-schedule", async (req, res) => {
 });
 
 cron.schedule("0 10 * * 0", async () => {
+  return;
   const waCiEvents = await notifications.supabase.getThisWeekCIEvents();
 
   let jreEventsCount = 0;
@@ -306,6 +308,38 @@ cron.schedule("0 10 * * 0", async () => {
         logResult.to
       );
     })
+  );
+});
+
+cron.schedule("*/5 * * * *", async () => {
+  console.log("Running cron job");
+
+  const isActive = await notifications.supabase.isNotificationEnabled();
+
+  if (!isActive) {
+    console.log("Server is not active, skipping cron job");
+    return;
+  }
+
+  //TODO add logging
+  let startTime = new Date();
+  console.log("Running cron job");
+  console.log("startTime", dayjs(startTime).format("HH:mm:ss"));
+  await Promise.allSettled([
+    notifications.supabase.cleanupAlerts(),
+    notifications.supabase.cleanupNotifications(),
+  ]);
+  await Promise.allSettled([
+    notifications.notifySubscribers(),
+    notifications.responseNotifications(),
+    notifications.dueNotifications(),
+    notifications.notifyAdminsOfNewRequests(),
+  ]);
+  let endTime = new Date();
+  console.log(
+    `Cron job completed in ${endTime.getTime() - startTime.getTime()}ms ${dayjs(
+      endTime
+    ).format("HH:mm:ss")}`
   );
 });
 
